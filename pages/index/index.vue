@@ -1,20 +1,31 @@
 <template>
   <div class="home">
-    <!-- 英雄区域 -->
-    <header class="hero">
-      <div class="hero-content">
-        <p class="hero-kicker">PanHub 搜索聚合引擎</p>
-        <h1 class="hero-title">一键检索全网网盘资源</h1>
-        <p class="hero-description">
-          聚合阿里云盘、夸克、百度网盘、115、迅雷等平台，快速、直达、少打扰
-        </p>
-        <div class="hero-meta">
-          <span class="hero-chip">实时聚合</span>
-          <span class="hero-chip">多平台覆盖</span>
-          <span class="hero-chip">结果去重</span>
+    <!-- 英雄区域 + 热门搜索 -->
+    <div class="hero-row">
+      <div class="hero-noise" aria-hidden="true" />
+      <header class="hero">
+        <div class="hero-accent" aria-hidden="true" />
+        <div class="hero-content">
+          <div class="hero-badge">PanHub 搜索聚合引擎</div>
+          <h1 class="hero-title">
+            <span class="hero-title-line">一键检索</span>
+            <span class="hero-title-line hero-title-line--accent">全网网盘资源</span>
+          </h1>
+          <p class="hero-description">
+            聚合阿里云盘、夸克、百度网盘、115、迅雷等平台 · 快速、直达、少打扰
+          </p>
+          <ul class="hero-features" role="list">
+            <li class="hero-feature">实时聚合</li>
+            <li class="hero-feature">多平台覆盖</li>
+            <li class="hero-feature">结果去重</li>
+          </ul>
         </div>
-      </div>
-    </header>
+        <div class="hero-shape" aria-hidden="true" />
+      </header>
+      <aside v-if="!searchState.searched" class="hero-aside">
+        <HotSearchSection ref="hotSearchRef" :on-search="quickSearch" />
+      </aside>
+    </div>
 
     <!-- 搜索框 -->
     <SearchBox
@@ -114,11 +125,6 @@
     <!-- 豆瓣电影新片榜 - 搜索时隐藏 -->
     <section v-if="!searchState.searched" class="douban-hot-section">
       <DoubanHotSection ref="doubanHotRef" :on-search="quickSearch" />
-    </section>
-
-    <!-- 热门搜索 - 用户搜索历史，搜索时隐藏 -->
-    <section v-if="!searchState.searched" class="hot-search-section">
-      <HotSearchSection ref="hotSearchRef" :on-search="quickSearch" />
     </section>
   </div>
 </template>
@@ -372,67 +378,182 @@ function visibleSorted(items: any[]) {
   gap: 24px;
 }
 
-/* 英雄区域 */
-.hero {
-  background: linear-gradient(160deg, rgba(15, 118, 110, 0.08), rgba(245, 158, 11, 0.1));
-  border: 1px solid rgba(15, 118, 110, 0.2);
-  border-radius: 20px;
-  padding: 28px 24px;
-  text-align: left;
-  box-shadow: 0 12px 28px rgba(15, 118, 110, 0.08);
+/* 英雄区域 + 热门搜索（frontend-design: editorial + industrial） */
+.hero-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
   position: relative;
+  background: linear-gradient(145deg, rgba(15, 118, 110, 0.12) 0%, rgba(15, 118, 110, 0.04) 35%, rgba(245, 158, 11, 0.06) 70%, rgba(15, 118, 110, 0.08) 100%);
+  border-radius: 20px;
+  box-shadow: 0 4px 20px -4px rgba(15, 118, 110, 0.15);
   overflow: hidden;
 }
 
-.hero-content {
+.hero-noise {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  z-index: 0;
+}
+
+.hero {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 28px;
+  text-align: left;
   position: relative;
   z-index: 1;
 }
 
-.hero-kicker {
-  margin: 0 0 10px;
-  font-size: 12px;
-  letter-spacing: 0.12em;
+.hero-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 50%, var(--primary) 100%);
+  opacity: 1;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  padding-left: 12px;
+}
+
+.hero-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--primary);
-  font-weight: 800;
+  margin-bottom: 10px;
+  padding: 6px 12px;
+  background: rgba(15, 118, 110, 0.12);
+  border: 1px solid rgba(15, 118, 110, 0.25);
+  border-radius: 8px;
+  font-family: "Manrope", sans-serif;
+  animation: heroReveal 0.6s ease-out both;
+  animation-delay: 0.05s;
 }
 
 .hero-title {
-  font-size: 34px;
-  font-weight: 900;
+  font-family: "Syne", "Manrope", sans-serif;
+  font-size: 36px;
+  font-weight: 800;
   margin: 0 0 10px;
   color: var(--text-primary);
   letter-spacing: -0.04em;
-  line-height: 1.15;
-  max-width: 680px;
+  line-height: 1.1;
+  max-width: 560px;
+  animation: heroReveal 0.6s ease-out both;
+  animation-delay: 0.12s;
+}
+
+.hero-title-line {
+  display: block;
+}
+
+.hero-title-line--accent {
+  background: linear-gradient(120deg, var(--primary) 0%, #0d9488 40%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .hero-description {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--text-secondary);
+  margin: 0 0 16px;
+  line-height: 1.65;
+  max-width: 520px;
+  animation: heroReveal 0.6s ease-out both;
+  animation-delay: 0.2s;
+}
+
+.hero-features {
+  list-style: none;
   margin: 0;
-  line-height: 1.5;
-  max-width: 760px;
-}
-
-.hero-meta {
+  padding: 0;
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
-  margin-top: 14px;
+  gap: 12px 20px;
 }
 
-.hero-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(15, 118, 110, 0.25);
-  background: rgba(255, 255, 255, 0.5);
-  color: var(--primary);
+.hero-feature {
   font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--primary-dark);
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  border-radius: 10px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  animation: heroReveal 0.6s ease-out both;
+}
+
+.hero-feature:nth-child(1) { animation-delay: 0.28s; }
+.hero-feature:nth-child(2) { animation-delay: 0.34s; }
+.hero-feature:nth-child(3) { animation-delay: 0.4s; }
+
+.hero-feature:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.15);
+  border-color: rgba(15, 118, 110, 0.35);
+}
+
+.hero-shape {
+  position: absolute;
+  right: 8%;
+  bottom: 10%;
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.15) 0%, rgba(245, 158, 11, 0.08) 100%);
+  border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+  filter: blur(24px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes heroReveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-aside {
+  flex-shrink: 0;
+  width: 340px;
+}
+
+/* 嵌入时去除热门搜索的独立卡片感 */
+.hero-aside :deep(.tag-cloud-wrap),
+.hero-aside :deep(.loading-state),
+.hero-aside :deep(.tag-cloud-placeholder) {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.hero-aside :deep(.tag-cloud-wrap) {
+  padding: 12px 16px;
+  min-height: 260px;
+}
+
+.hero-aside :deep(.hot-tagcloud) {
+  height: 240px !important;
 }
 
 /* 统计和过滤器栏 */
@@ -669,14 +790,29 @@ function visibleSorted(items: any[]) {
 }
 
 /* 移动端优化 */
-@media (max-width: 640px) {
-  .hero {
-    padding: 20px 14px;
-    border-radius: 16px;
+@media (max-width: 900px) {
+  .hero-row {
+    flex-direction: column;
   }
 
-  .hero-kicker {
-    font-size: 11px;
+  .hero-aside {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: 24px 18px;
+  }
+
+  .hero-content {
+    padding-left: 4px;
+  }
+
+  .hero-badge {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    margin-bottom: 10px;
   }
 
   .hero-title {
@@ -684,12 +820,20 @@ function visibleSorted(items: any[]) {
   }
 
   .hero-description {
-    font-size: 13px;
+    font-size: 14px;
+    margin-bottom: 16px;
   }
 
-  .hero-chip {
-    padding: 5px 9px;
-    font-size: 11px;
+  .hero-feature {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .hero-shape {
+    width: 80px;
+    height: 80px;
+    right: 5%;
+    bottom: 5%;
   }
 
   .stats-bar {
@@ -746,14 +890,26 @@ function visibleSorted(items: any[]) {
 
 /* 深色模式支持 */
 @media (prefers-color-scheme: dark) {
-  .hero {
+  .hero-row {
     background: linear-gradient(160deg, rgba(15, 118, 110, 0.16), rgba(245, 158, 11, 0.14));
     border-color: rgba(45, 212, 191, 0.24);
   }
 
-  .hero-chip {
-    background: rgba(17, 24, 39, 0.45);
-    border-color: rgba(45, 212, 191, 0.35);
+
+  .hero-badge {
+    background: rgba(15, 118, 110, 0.25);
+    color: #5eead4;
+    border-color: rgba(45, 212, 191, 0.3);
+  }
+
+  .hero-feature {
+    color: #99f6e4;
+    background: rgba(15, 118, 110, 0.2);
+    border-color: rgba(45, 212, 191, 0.25);
+  }
+
+  .hero-feature:hover {
+    border-color: rgba(45, 212, 191, 0.45);
   }
 
   .stat-item {
@@ -802,6 +958,16 @@ function visibleSorted(items: any[]) {
 
 /* 高对比度模式支持 */
 @media (prefers-contrast: high) {
+  .hero-title-line--accent {
+    -webkit-text-fill-color: var(--primary);
+    background: none;
+  }
+
+  .hero-badge,
+  .hero-feature {
+    border-width: 2px;
+  }
+
   .filter-pill.active {
     border-width: 2px;
   }
@@ -817,6 +983,17 @@ function visibleSorted(items: any[]) {
 
 /* 减少动画模式支持 */
 @media (prefers-reduced-motion: reduce) {
+  .hero-badge,
+  .hero-title,
+  .hero-description,
+  .hero-feature {
+    animation: none;
+  }
+
+  .hero-feature:hover {
+    transform: none;
+  }
+
   .hero,
   .stats-bar,
   .results-section,

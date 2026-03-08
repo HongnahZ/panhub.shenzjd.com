@@ -1,38 +1,30 @@
 <template>
-  <!-- 无数据时不显示整个组件 -->
   <div v-if="!loading && searches.length === 0" class="hidden"></div>
 
   <div v-else class="hot-search-section">
-    <div class="section-head">
-      <h2 class="section-title">热门搜索</h2>
-      <p class="section-subtitle">点击任意关键词可快速发起搜索</p>
-    </div>
     <div class="cloud-container">
-      <!-- 加载状态 -->
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
         <span>搜索热度加载中…</span>
       </div>
 
-      <!-- 智能标签云 -->
-      <div v-else class="tag-cloud">
-        <button
-          v-for="item in searches"
-          :key="item.term"
-          class="tag-item"
-          :style="getTagStyle(item.score)"
-          :aria-label="`搜索热词 ${item.term}`"
-          @click="onSearchClick(item.term)"
-        >
-          {{ item.term }}
-        </button>
-      </div>
+      <ClientOnly>
+        <div
+          v-show="!loading && searches.length > 0"
+          ref="tagCloudRef"
+          class="tag-cloud-wrap"
+          @click="onContainerClick"
+        />
+        <template #fallback>
+          <div class="tag-cloud-placeholder" />
+        </template>
+      </ClientOnly>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch, onBeforeUnmount, nextTick } from "vue";
 
 interface Props {
   onSearch: (term: string) => void;
@@ -47,84 +39,98 @@ interface HotSearchItem {
 
 const props = defineProps<Props>();
 
-// 状态
 const loading = ref(false);
 const searches = ref<HotSearchItem[]>([]);
 const hasInitialized = ref(false);
+const tagCloudRef = ref<HTMLElement | null>(null);
+let tagCloudInstance: { update: (t: string[]) => void; destroy: () => void } | null = null;
 
-// 获取热搜数据
 async function fetchHotSearches() {
   loading.value = true;
   try {
-    const response = await fetch('/api/hot-searches?limit=30');
+    const response = await fetch("/api/hot-searches?limit=40");
     const data = await response.json();
-
     if (data.code === 0 && data.data?.hotSearches) {
-      // 按分数排序，高分在前
       searches.value = data.data.hotSearches
         .sort((a: HotSearchItem, b: HotSearchItem) => b.score - a.score)
-        .slice(0, 30);
+        .slice(0, 40);
+    } else {
+      searches.value = [];
     }
-  } catch (error) {
-    // 失败时不显示任何内容
+  } catch {
     searches.value = [];
   } finally {
     loading.value = false;
   }
 }
 
-// 首次初始化（只在页面加载时执行一次）
 async function init() {
-  if (hasInitialized.value) {
-    return;
-  }
+  if (hasInitialized.value) return;
   hasInitialized.value = true;
   await fetchHotSearches();
 }
 
-// 刷新数据（每次重置时调用）
 async function refresh() {
   await fetchHotSearches();
 }
 
-// 根据分数计算标签样式
-function getTagStyle(score: number) {
-  if (searches.value.length === 0) return {};
-
-  // 分数映射到字体大小（12px - 24px）
-  const minScore = Math.min(...searches.value.map(s => s.score));
-  const maxScore = Math.max(...searches.value.map(s => s.score));
-  const normalized = (score - minScore) / (maxScore - minScore || 1);
-  const fontSize = 12 + normalized * 12; // 12px - 24px
-
-  // 分数映射到粗细和透明度
-  const fontWeight = score >= 70 ? 800 : score >= 40 ? 700 : 600;
-  const opacity = 0.75 + normalized * 0.25; // 0.75 - 1.0
-  const bgOpacity = 0.08 + normalized * 0.22;
-  const borderOpacity = 0.16 + normalized * 0.3;
-
-  return {
-    fontSize: `${fontSize}px`,
-    color: "var(--primary-dark)",
-    fontWeight: fontWeight,
-    opacity: opacity,
-    padding: `${6 + normalized * 2}px ${10 + normalized * 4}px`,
-    margin: `${4 + (1 - normalized) * 2}px`,
-    backgroundColor: `rgba(15, 118, 110, ${bgOpacity.toFixed(3)})`,
-    borderColor: `rgba(15, 118, 110, ${borderOpacity.toFixed(3)})`
-  };
+function getTerms(): string[] {
+  return searches.value.map((s) => s.term);
 }
 
-// 点击搜索词
-function onSearchClick(term: string) {
-  props.onSearch(term);
+async function initTagCloud() {
+  if (!tagCloudRef.value || typeof window === "undefined") return;
+  const terms = getTerms();
+  if (terms.length === 0) return;
+
+  if (tagCloudInstance) {
+    tagCloudInstance.update(terms);
+    return;
+  }
+
+  const TagCloud = (await import("TagCloud")).default;
+  tagCloudInstance = TagCloud(tagCloudRef.value, terms, {
+    radius: 165,
+    maxSpeed: "normal",
+    initSpeed: "slow",
+    direction: 135,
+    keep: true,
+    containerClass: "hot-tagcloud",
+    itemClass: "hot-tagcloud-item",
+  });
 }
 
-// 暴露方法给父组件
-defineExpose({
-  init,
-  refresh,
+function destroyTagCloud() {
+  if (tagCloudInstance) {
+    tagCloudInstance.destroy();
+    tagCloudInstance = null;
+  }
+}
+
+function onContainerClick(e: MouseEvent) {
+  const target = e.target as HTMLElement;
+  if (target?.classList?.contains("hot-tagcloud-item")) {
+    const term = target.innerText?.trim();
+    if (term) props.onSearch(term);
+  }
+}
+
+watch(
+  () => [searches.value.length, loading.value] as const,
+  async ([len, ld]) => {
+    if (!ld && len > 0) {
+      await nextTick();
+      initTagCloud();
+    }
+  },
+  { flush: "post" }
+);
+
+onBeforeUnmount(() => {
+  destroyTagCloud();
 });
+
+defineExpose({ init, refresh });
 </script>
 
 <style scoped>
@@ -132,71 +138,46 @@ defineExpose({
   width: 100%;
 }
 
-.section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.section-title {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.section-subtitle {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
 .cloud-container {
   width: 100%;
 }
 
-/* 标签云容器 - 玻璃拟态风格 */
-.tag-cloud {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 18px;
+.tag-cloud-wrap {
+  min-height: 340px;
+  padding: 20px;
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-light);
   border-radius: 14px;
-  min-height: 180px;
-}
-
-/* 标签样式 - 现代设计 */
-.tag-item {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-medium);
-  border-radius: 999px;
   cursor: pointer;
-  transition: transform 200ms ease, box-shadow 200ms ease, filter 200ms ease,
-    background-color 200ms ease;
-  white-space: nowrap;
-  text-align: center;
-  line-height: 1.2;
-  user-select: none;
+}
+
+.tag-cloud-placeholder {
+  min-height: 340px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+}
+
+/* 覆盖 TagCloud 默认样式，适配项目主题 */
+.tag-cloud-wrap :deep(.hot-tagcloud) {
   position: relative;
+  width: 100%;
+  height: 300px;
 }
 
-.tag-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 7px 14px rgba(15, 118, 110, 0.18);
-  filter: brightness(1.03);
-  z-index: 10;
+.tag-cloud-wrap :deep(.hot-tagcloud-item) {
+  color: var(--primary-dark, #0f766e) !important;
+  font-weight: 600 !important;
+  font-family: inherit !important;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
 }
 
-/* 加载状态 */
+.tag-cloud-wrap :deep(.hot-tagcloud-item:hover) {
+  opacity: 0.9;
+}
+
 .loading-state {
   display: flex;
   flex-direction: column;
@@ -220,26 +201,20 @@ defineExpose({
   animation: spin 1s linear infinite;
 }
 
-/* 动画 */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* 移动端优化 */
 @media (max-width: 640px) {
-  .section-head {
-    flex-direction: column;
-    gap: 4px;
+  .tag-cloud-wrap {
+    min-height: 280px;
+    padding: 16px;
   }
 
-  .section-title {
-    font-size: 15px;
-  }
-
-  .tag-cloud {
-    padding: 14px;
-    gap: 6px;
-    min-height: 140px;
+  .tag-cloud-wrap :deep(.hot-tagcloud) {
+    height: 260px;
   }
 
   .loading-state {
@@ -247,9 +222,17 @@ defineExpose({
   }
 }
 
-/* 深色模式 */
 @media (prefers-color-scheme: dark) {
-  .tag-cloud {
+  .tag-cloud-wrap {
+    background: rgba(17, 24, 39, 0.5);
+    border-color: rgba(75, 85, 99, 0.4);
+  }
+
+  .tag-cloud-wrap :deep(.hot-tagcloud-item) {
+    color: #99f6e4 !important;
+  }
+
+  .tag-cloud-placeholder {
     background: rgba(17, 24, 39, 0.5);
     border-color: rgba(75, 85, 99, 0.4);
   }
@@ -257,27 +240,6 @@ defineExpose({
   .loading-state {
     background: rgba(17, 24, 39, 0.5);
     border-color: rgba(75, 85, 99, 0.4);
-  }
-
-  .tag-item {
-    color: #ccfbf1 !important;
-  }
-
-  .tag-item:hover {
-    box-shadow: 0 7px 14px rgba(15, 118, 110, 0.28);
-  }
-}
-
-/* 减少动画模式 */
-@media (prefers-reduced-motion: reduce) {
-  .tag-item,
-  .spinner {
-    animation: none;
-    transition: none;
-  }
-
-  .tag-item:hover {
-    transform: none;
   }
 }
 

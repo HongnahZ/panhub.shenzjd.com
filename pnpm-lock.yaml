@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      TagCloud:
+        specifier: ^2.5.0
+        version: 2.5.0
       cheerio:
         specifier: ^1.0.0
         version: 1.2.0
@@ -1486,6 +1489,9 @@ packages:
 
   '@vue/shared@3.5.29':
     resolution: {integrity: sha512-w7SR0A5zyRByL9XUkCfdLs7t9XOHUyJ67qPGQjOou3p6GvBeBW+AVjUUmlxtZ4PIYaRvE+1LmK44O4uajlZwcg==}
+
+  TagCloud@2.5.0:
+    resolution: {integrity: sha512-lMr8UCbOLOyP9iKc/lJalpNTm25rjmplbQ20ljw02tyx4ITBxDh4TRBhSpayC6QGjtRtvslUljfr2SGoPOGnXw==}
 
   abbrev@3.0.1:
     resolution: {integrity: sha512-AO2ac6pjRB3SJmGJo+v5/aK6Omggp6fsLrs6wN9bd35ulu4cCwaAU9+7ZhXjeqHVkaHThLuzH0nZr0YpCDhygg==}
@@ -5144,6 +5150,8 @@ snapshots:
       vue: 3.5.29
 
   '@vue/shared@3.5.29': {}
+
+  TagCloud@2.5.0: {}
 
   abbrev@3.0.1: {}
 

@@ -29,6 +29,7 @@
     "deploy:cf": "wrangler deploy"
   },
   "dependencies": {
+    "TagCloud": "^2.5.0",
     "cheerio": "^1.0.0",
     "nuxt": "^4.0.3",
     "ofetch": "^1.4.1",

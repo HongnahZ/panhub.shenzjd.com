@@ -143,7 +143,7 @@ provide('showToast', showToast);
 
 <style>
 /* 全局样式重置和现代化设计系统 */
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=Syne:wght@600;700;800&display=swap");
 
 :root {
   --primary: #0f766e;
