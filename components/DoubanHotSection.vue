@@ -14,40 +14,59 @@
       </button>
     </div>
 
-    <div v-if="loading" class="loading-state">
+    <div v-if="loading && items.length === 0" class="loading-state">
       <div class="spinner"></div>
       <span>加载中…</span>
     </div>
-    <div v-else class="movie-grid">
-      <button
-        v-for="item in movieItems"
-        :key="(item.id ?? 0) + item.title"
-        class="movie-card"
-        :aria-label="`搜索 ${extractTerm(item.title)}`"
-        @click="onItemClick(item.title)"
+    <div v-else>
+      <div class="movie-grid">
+        <button
+          v-for="item in items"
+          :key="(item.id ?? 0) + item.title"
+          class="movie-card"
+          :aria-label="`搜索 ${extractTerm(item.title)}`"
+          @click="onItemClick(item.title)"
+        >
+          <div class="movie-cover">
+            <img
+              v-if="item.cover && !imgFailed.includes(item.id ?? 0)"
+              :src="proxyCover(item.cover)"
+              :alt="extractTerm(item.title)"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+              @error="onImgError(item.id ?? 0)"
+            />
+            <div v-else class="cover-placeholder">🎬</div>
+          </div>
+          <div class="movie-info">
+            <span class="movie-title">{{ extractTerm(item.title) }}</span>
+            <span v-if="item.desc" class="movie-desc">{{ item.desc }}</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- 加载更多触发器 -->
+      <div
+        v-if="hasMore || loadingMore"
+        ref="loadTriggerRef"
+        class="load-more-trigger"
       >
-        <div class="movie-cover">
-          <img
-            v-if="item.cover && !imgFailed.includes(item.id ?? 0)"
-            :src="proxyCover(item.cover)"
-            :alt="extractTerm(item.title)"
-            loading="lazy"
-            referrerpolicy="no-referrer"
-            @error="onImgError(item.id ?? 0)"
-          />
-          <div v-else class="cover-placeholder">🎬</div>
+        <div v-if="loadingMore" class="loading-more">
+          <div class="spinner small"></div>
+          <span>加载更多…</span>
         </div>
-        <div class="movie-info">
-          <span class="movie-title">{{ extractTerm(item.title) }}</span>
-          <span v-if="item.desc" class="movie-desc">{{ item.desc }}</span>
-        </div>
-      </button>
+      </div>
+
+      <!-- 没有更多数据提示 -->
+      <div v-else-if="items.length > 0" class="no-more">
+        没有更多了
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
 
 interface Props {
   onSearch: (term: string) => void;
@@ -62,21 +81,17 @@ interface DoubanHotItem {
   hot?: number;
 }
 
-interface DoubanHotCategory {
-  id: string;
-  label: string;
-  title: string;
-  type: string;
-  items: DoubanHotItem[];
-}
-
 const props = defineProps<Props>();
 
 const loading = ref(false);
-const categories = ref<Record<string, DoubanHotCategory>>({});
-const hasInitialized = ref(false);
+const loadingMore = ref(false);
+const items = ref<DoubanHotItem[]>([]);
+const hasMore = ref(true);
 const imgFailed = ref<number[]>([]);
-const selectedCategoryId = ref<string>("douban-top250");
+const selectedCategoryId = ref<string>("douban-movie");
+const currentPage = ref(1);
+const loadObserver = ref<IntersectionObserver | null>(null);
+const loadTriggerRef = ref<HTMLElement | null>(null);
 
 // 所有可用的分类配置
 const availableCategories = computed(() => {
@@ -88,21 +103,9 @@ const availableCategories = computed(() => {
   ];
 });
 
-// 当前选中的分类
-const currentCategory = computed(() => {
-  return categories.value[selectedCategoryId.value];
-});
-
-// 当前分类的项目
-const movieItems = computed(() => {
-  return currentCategory.value?.items ?? [];
-});
-
 // 是否有任何数据
 const hasAnyData = computed(() => {
-  if (loading.value) return true;
-  // 只要有一个分类有数据就显示
-  return Object.values(categories.value).some(cat => cat.items.length > 0);
+  return items.value.length > 0;
 });
 
 function onImgError(id: number) {
@@ -120,27 +123,84 @@ function proxyCover(url: string): string {
   return `/api/img?url=${encodeURIComponent(url)}`;
 }
 
-async function fetchDoubanHot() {
-  loading.value = true;
+async function fetchCategoryData(categoryId: string, page: number, append = false) {
+  if (page === 1) {
+    loading.value = true;
+  } else {
+    loadingMore.value = true;
+  }
+
   try {
-    // 获取所有分类的数据
-    const allCategories = availableCategories.value.map(c => c.id).join(",");
-    const response = await fetch(`/api/douban-hot?categories=${allCategories}`);
+    const response = await fetch(`/api/douban-hot?category=${categoryId}&page=${page}&limit=25`);
     const data = await response.json();
-    if (data.code === 0 && data.data?.categories) {
-      categories.value = data.data.categories;
+
+    if (data.code === 0 && data.data) {
+      const newItems = data.data.items || [];
+      if (append) {
+        items.value = [...items.value, ...newItems];
+      } else {
+        items.value = newItems;
+      }
+      hasMore.value = data.data.hasMore !== undefined ? data.data.hasMore : newItems.length >= 25;
+      currentPage.value = page;
     } else {
-      categories.value = {};
+      if (!append) {
+        items.value = [];
+      }
+      hasMore.value = false;
     }
   } catch {
-    categories.value = {};
+    if (!append) {
+      items.value = [];
+    }
+    hasMore.value = false;
   } finally {
     loading.value = false;
+    loadingMore.value = false;
   }
 }
 
-function selectCategory(categoryId: string) {
+async function selectCategory(categoryId: string) {
+  if (categoryId === selectedCategoryId.value && items.value.length > 0) return;
   selectedCategoryId.value = categoryId;
+  currentPage.value = 1;
+  hasMore.value = true;
+  await fetchCategoryData(categoryId, 1, false);
+  await nextTick();
+  setupLoadMoreObserver();
+}
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return;
+  await fetchCategoryData(selectedCategoryId.value, currentPage.value + 1, true);
+}
+
+function setupLoadMoreObserver() {
+  // 清理旧的 observer
+  if (loadObserver.value) {
+    loadObserver.value.disconnect();
+  }
+
+  // 等待 DOM 更新
+  nextTick(() => {
+    const target = loadTriggerRef.value;
+    if (!target) return;
+
+    loadObserver.value = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore.value && !loading.value && !loadingMore.value) {
+          loadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "100px",
+        threshold: 0.1,
+      }
+    );
+
+    loadObserver.value.observe(target);
+  });
 }
 
 function onItemClick(title: string) {
@@ -149,14 +209,22 @@ function onItemClick(title: string) {
 }
 
 async function init() {
-  if (hasInitialized.value) return;
-  hasInitialized.value = true;
-  await fetchDoubanHot();
+  await fetchCategoryData(selectedCategoryId.value, 1, false);
+  await nextTick();
+  setupLoadMoreObserver();
 }
 
 async function refresh() {
-  await fetchDoubanHot();
+  currentPage.value = 1;
+  hasMore.value = true;
+  await fetchCategoryData(selectedCategoryId.value, 1, false);
 }
+
+onBeforeUnmount(() => {
+  if (loadObserver.value) {
+    loadObserver.value.disconnect();
+  }
+});
 
 defineExpose({ init, refresh });
 </script>
@@ -372,5 +440,34 @@ defineExpose({ init, refresh });
   .movie-card:hover {
     transform: none;
   }
+}
+
+.load-more-trigger {
+  padding: 20px 0;
+  min-height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.loading-more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.spinner.small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.no-more {
+  padding: 20px 0;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
 }
 </style>

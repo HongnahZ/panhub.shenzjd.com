@@ -24,6 +24,11 @@ export interface DoubanHotResult {
   categories: Record<string, DoubanHotCategory>;
 }
 
+export interface DoubanHotPageResult {
+  items: DoubanHotItem[];
+  hasMore: boolean;
+}
+
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 小时（豆瓣新片榜更新较慢）
 const cache = new MemoryCache<DoubanHotResult>({ maxSize: 10 });
 const UA =
@@ -619,6 +624,40 @@ const scrapers: Record<string, () => Promise<DoubanHotItem[]>> = {
   "douban-weekly": scrapeDoubanWeekly,
   "douban-us-box": scrapeDoubanUsBox,
 };
+
+// 按分类分页获取数据
+export async function fetchDoubanHotByCategory(
+  category: string,
+  page: number = 1,
+  limit: number = 25
+): Promise<DoubanHotPageResult> {
+  const scrape = scrapers[category];
+  if (!scrape) {
+    return { items: [], hasMore: false };
+  }
+
+  const cacheKey = `douban-hot:${category}:page:${page}`;
+
+  const cached = cache.get(cacheKey);
+  if (cached.hit && cached.value) {
+    return cached.value;
+  }
+
+  try {
+    const allItems = await scrape();
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const items = allItems.slice(start, end);
+    const hasMore = end < allItems.length;
+
+    const result: DoubanHotPageResult = { items, hasMore };
+    cache.set(cacheKey, result, CACHE_TTL_MS);
+    return result;
+  } catch (e) {
+    console.warn(`[DoubanHot] ${category} 分页抓取失败:`, (e as Error).message);
+    return { items: [], hasMore: false };
+  }
+}
 
 export async function fetchDoubanHot(
   categories?: string[]
