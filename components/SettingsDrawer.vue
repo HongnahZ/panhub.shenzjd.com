@@ -542,6 +542,10 @@ function onDrawerScroll() {
     grid-template-columns: 1fr;
     gap: 6px;
   }
+
+  .drawer__footer {
+    justify-content: center;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
