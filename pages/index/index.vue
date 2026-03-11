@@ -290,13 +290,11 @@ async function handleContinueSearch() {
   });
 }
 
-// 完全重置 - 清空输入框、结果、状态，并恢复/刷新热搜
+// 完全重置 - 清空输入框、结果、状态
 async function fullReset() {
   kw.value = "";
   resetSearch();
   await nextTick();
-  if (doubanHotRef.value) await doubanHotRef.value.refresh();
-  if (hotSearchRef.value) await hotSearchRef.value.refresh();
 }
 
 // 平台信息
